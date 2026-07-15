@@ -74,13 +74,13 @@ make run-vggtslam2
 Use only GPU 0:
 
 ```bash
-GPU=0 make run-vggtslam2
+make run-vggtslam2 GPU=0
 ```
 
 Use only GPU 1:
 
 ```bash
-GPU=1 make run-vggtslam2
+make run-vggtslam2 GPU=1 
 ```
 
 The main directories inside the container are:
@@ -111,7 +111,7 @@ make prepare-terminal-for-visualization
 Then enter the container:
 
 ```bash
-GPU=0 make run-vggtslam2
+make run-vggtslam2 GPU=0 
 ```
 
 ## Prepare the smoke-test data
