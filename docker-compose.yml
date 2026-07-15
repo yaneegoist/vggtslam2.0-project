@@ -1,0 +1,40 @@
+services:
+  vggtslam2:
+    build:
+      context: .
+      dockerfile: docker/vggtslam2.Dockerfile
+      args:
+        USER_UID: ${USER_UID:-1000}
+        USER_GID: ${USER_GID:-1000}
+
+    image: slam_bench/vggtslam2:latest
+
+    runtime: nvidia
+    network_mode: host
+    ipc: host
+
+    stdin_open: true
+    tty: true
+
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=${GPU:-all}
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility,graphics
+      - CUDA_DEVICE_ORDER=PCI_BUS_ID
+      - DISPLAY=${DISPLAY}
+      - TORCH_HOME=/export/cache/torch
+      - HF_HOME=/export/cache/huggingface
+      - HUGGINGFACE_HUB_CACHE=/export/cache/huggingface/hub
+      - XDG_CACHE_HOME=/export/cache
+      - PYTHONPATH=/app/vggtslam2:/app/depth-anything-3/src
+
+    volumes:
+      - ./approaches/vggtslam2:/app/vggtslam2
+      - ./approaches/depth-anything-3:/app/depth-anything-3
+      - ./data:/data
+      - ./results:/results
+      - ./scripts:/scripts
+      - ./export:/export
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+
+    working_dir: /app/vggtslam2
+    entrypoint: /bin/bash

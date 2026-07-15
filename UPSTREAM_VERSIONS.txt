@@ -1,0 +1,7 @@
+VGGT-SLAM
+Repository: https://github.com/MIT-SPARK/VGGT-SLAM.git
+Commit: 35327ac28b7d193df9ccc39ba6346052bb6f1207
+
+Depth Anything 3
+Repository: https://github.com/bytedance-seed/depth-anything-3.git
+Commit: e74fd796e96b7e781a5506fd8503b6bd7232513c

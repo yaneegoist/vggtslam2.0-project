@@ -1,0 +1,14 @@
+.git
+**/.git
+
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+
+data/*
+results/*
+export/cache/
+
+.vscode/
+.idea/
+.DS_Store
