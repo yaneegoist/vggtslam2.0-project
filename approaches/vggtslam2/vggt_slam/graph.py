@@ -10,6 +10,7 @@ from gtsam import SL4, PriorFactorSL4, BetweenFactorSL4
 from gtsam.symbol_shorthand import X
 
 from vggt_slam.slam_utils import decompose_camera, normalize_to_sl4
+from vggt_slam.metric_factor import make_metric_between_factor
 
 class PoseGraph:
     def __init__(self):
@@ -45,6 +46,37 @@ class PoseGraph:
         if key1 not in self.initialized_nodes or key2 not in self.initialized_nodes:
             raise ValueError(f"Both poses {key1} and {key2} must exist before adding a factor.")
         self.graph.add(gtsam.BetweenFactorSL4(key1, key2, SL4(relative_h), noise))
+
+    def add_metric_between_factor(
+        self,
+        key1,
+        key2,
+        intrinsic1,
+        intrinsic2,
+        measured_relative_pose,
+        noise,
+        numerical_derivative_epsilon=1e-6,
+    ):
+        """Add a six-dimensional metric constraint between SL4 nodes."""
+        key1 = X(key1)
+        key2 = X(key2)
+
+        if key1 not in self.initialized_nodes or key2 not in self.initialized_nodes:
+            raise ValueError(
+                f"Both poses {key1} and {key2} must exist before "
+                "adding a metric factor."
+            )
+
+        factor = make_metric_between_factor(
+            key1,
+            key2,
+            intrinsic1,
+            intrinsic2,
+            measured_relative_pose,
+            noise,
+            numerical_derivative_epsilon,
+        )
+        self.graph.add(factor)
     
     def add_prior_factor(self, key, global_h):
         # global_h = normalize_to_sl4(global_h)
