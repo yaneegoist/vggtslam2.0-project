@@ -27,6 +27,7 @@ class MetricPoseSource:
         self.random_seed = random_seed
 
         exact_poses = self._load_pose_file(pose_file)
+        self.exact_poses = exact_poses
         self.frame_ids = np.array(sorted(exact_poses), dtype=float)
 
         random_generator = np.random.default_rng(random_seed)
@@ -141,8 +142,23 @@ class MetricPoseSource:
         matched_frame_id = self._match_frame_id(frame_id)
         return self.poses[matched_frame_id]
 
+    def get_exact_pose(self, frame_id):
+        """Return the original camera-to-world pose without emulation noise."""
+        matched_frame_id = self._match_frame_id(frame_id)
+        return self.exact_poses[matched_frame_id]
+
+    def match_frame_id(self, frame_id):
+        """Return the pose-file frame id associated with an input frame."""
+        return self._match_frame_id(frame_id)
+
     def get_relative_pose(self, frame_id_i, frame_id_j):
         """Return T_Ci_Cj from two cached camera-to-world poses."""
         pose_i = self.get_pose(frame_id_i)
         pose_j = self.get_pose(frame_id_j)
+        return pose_i.between(pose_j)
+
+    def get_exact_relative_pose(self, frame_id_i, frame_id_j):
+        """Return an exact relative pose for deterministic pair selection."""
+        pose_i = self.get_exact_pose(frame_id_i)
+        pose_j = self.get_exact_pose(frame_id_j)
         return pose_i.between(pose_j)
