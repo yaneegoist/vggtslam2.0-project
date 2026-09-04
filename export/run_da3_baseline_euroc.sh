@@ -49,7 +49,12 @@ run_command=(
     --log_results
     --log_path "${container_result_dir}/trajectory.txt"
 )
+if [[ "${SAVE_DENSE:-1}" == "0" ]]; then
+    run_command+=(--skip_dense_log)
+fi
 printf -v run_command_string '%q ' "${run_command[@]}"
+printf -v run_log_quoted '%q' "${container_result_dir}/run.log"
+run_command_string="set -o pipefail; ${run_command_string}2>&1 | tee ${run_log_quoted}"
 
 echo "Running the DA3 + original SL(4) baseline on ${sequence} (GPU ${gpu})"
 GPU="${gpu}" docker compose run --rm \

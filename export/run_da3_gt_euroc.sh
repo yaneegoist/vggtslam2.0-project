@@ -53,7 +53,12 @@ run_command=(
     --gt_factor_translation_sigma_m 0.01
     --gt_factor_rotation_sigma_deg 0.1
 )
+if [[ "${SAVE_DENSE:-1}" == "0" ]]; then
+    run_command+=(--skip_dense_log)
+fi
 printf -v run_command_string '%q ' "${run_command[@]}"
+printf -v run_log_quoted '%q' "${container_result_dir}/run.log"
+run_command_string="set -o pipefail; ${run_command_string}2>&1 | tee ${run_log_quoted}"
 
 echo "Running DA3 + exact GT backend on ${sequence} (GPU ${gpu})"
 GPU="${gpu}" docker compose run --rm \
