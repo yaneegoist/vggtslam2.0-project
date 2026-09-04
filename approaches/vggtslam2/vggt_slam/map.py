@@ -139,6 +139,7 @@ class GraphMap:
                 assert len(self.rectifying_H_mats) == len(all_poses), "Number of rectifying mats and number of poses do not match"
                 print("Using rectifying homographies when writing poses to file.")
             count = 0
+            written_frame_ids = set()
             for submap_index, submap in enumerate(self.ordered_submaps_by_key()):
                 if submap.get_lc_status():
                     continue
@@ -146,9 +147,17 @@ class GraphMap:
                 print(frame_ids)
                 for frame_index, frame_id in enumerate(frame_ids):
                     pose = all_poses[count]
+                    count += 1
+
+                    # Consecutive submaps share their overlap frame. Keep
+                    # only one trajectory entry for each image timestamp.
+                    frame_id = float(frame_id)
+                    if frame_id in written_frame_ids:
+                        continue
+                    written_frame_ids.add(frame_id)
+
                     K, rotation_matrix, t, scale = decompose_camera(pose)
                     # print("Decomposed K:\n", K)
-                    count += 1
                     x, y, z = t
                     if kitti_format:
                         pose_matrix = np.eye(4)

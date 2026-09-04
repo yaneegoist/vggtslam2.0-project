@@ -72,7 +72,6 @@ class Solver:
     def configure_metric_factors(
         self,
         pose_source,
-        min_baseline_m,
         factor_translation_sigma_m,
         factor_rotation_sigma_deg,
     ):
@@ -80,7 +79,6 @@ class Solver:
         self.metric_factor_manager = MetricFactorManager(
             pose_graph=self.graph,
             pose_source=pose_source,
-            min_baseline_m=min_baseline_m,
             factor_translation_sigma_m=factor_translation_sigma_m,
             factor_rotation_sigma_deg=factor_rotation_sigma_deg,
         )

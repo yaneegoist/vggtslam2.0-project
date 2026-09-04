@@ -20,14 +20,27 @@ def slice_with_overlap(lst, n, k):
     return result
 
 
+def frame_id_from_image_path(path):
+    """Extract a timestamp, converting EuRoC nanoseconds to seconds."""
+    filename = os.path.basename(path)
+    match = re.search(
+        r"\d+(?:\.\d+)?(?=[^\d]*\.[^.]+$)",
+        filename,
+    )
+    if match is None:
+        raise ValueError(f"No numeric frame id found in image name: {filename}")
+
+    value_text = match.group()
+    if "." not in value_text:
+        integer_value = int(value_text)
+        if abs(integer_value) >= 10**12:
+            return integer_value * 1e-9
+
+    return float(value_text)
+
+
 def sort_images_by_number(image_paths):
-    def extract_number(path):
-        filename = os.path.basename(path)
-        # Look for digits (with optional decimal), followed by any non-digit characters, then the extension
-        match = re.search(r'\d+(?:\.\d+)?(?=[^\d]*\.[^.]+$)', filename)
-        return float(match.group()) if match else float('inf')
-        
-    return sorted(image_paths, key=extract_number)
+    return sorted(image_paths, key=frame_id_from_image_path)
 
 def downsample_images(image_names, downsample_factor):
     """

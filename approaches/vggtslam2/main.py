@@ -13,12 +13,18 @@ import matplotlib.pyplot as plt
 import vggt_slam.slam_utils as utils
 from vggt_slam.solver import Solver
 from vggt_slam.submap import Submap
-from vggt_slam.metric_pose_source import MetricPoseSource
+from vggt_slam.ground_truth_pose_source import GroundTruthPoseSource
 
 from vggt.models.vggt import VGGT
 
 parser = argparse.ArgumentParser(description="VGGT-SLAM demo")
 parser.add_argument("--image_folder", type=str, default="examples/kitchen/images/", help="Path to folder containing images")
+parser.add_argument(
+    "--image_list",
+    type=str,
+    default=None,
+    help="Optional text file containing one image path per line",
+)
 parser.add_argument("--vis_map", action="store_true", help="Visualize point cloud in viser as it is being build, otherwise only show the final map")
 parser.add_argument("--headless", action="store_true", help="Skip map visualization")
 parser.add_argument("--vis_imgs", action="store_true", help="Show camera images in the viser frustums. By default only the frustums are shown (faster visualization)")
@@ -68,15 +74,31 @@ parser.add_argument(
     help="DA3 reference-view selection strategy",
 )
 
-metric_group = parser.add_argument_group("metric pose factors")
-metric_group.add_argument("--metric_pose_file", type=str, default=None)
-metric_group.add_argument("--metric_translation_noise_m", type=float, default=0.0)
-metric_group.add_argument("--metric_rotation_noise_deg", type=float, default=0.0)
-metric_group.add_argument("--metric_noise_seed", type=int, default=0)
-metric_group.add_argument("--metric_association_tolerance", type=float, default=1e-3)
-metric_group.add_argument("--metric_min_baseline_m", type=float, default=1.0)
-metric_group.add_argument("--metric_factor_translation_sigma_m", type=float, default=0.10)
-metric_group.add_argument("--metric_factor_rotation_sigma_deg", type=float, default=2.0)
+gt_group = parser.add_argument_group("exact ground-truth pose factors")
+gt_group.add_argument(
+    "--gt_pose_file",
+    type=str,
+    default=None,
+    help="TUM trajectory: timestamp tx ty tz qx qy qz qw",
+)
+gt_group.add_argument(
+    "--gt_association_tolerance",
+    type=float,
+    default=0.02,
+    help="Maximum timestamp difference in seconds",
+)
+gt_group.add_argument(
+    "--gt_factor_translation_sigma_m",
+    type=float,
+    default=0.01,
+    help="Translation sigma used to weight exact-GT factors",
+)
+gt_group.add_argument(
+    "--gt_factor_rotation_sigma_deg",
+    type=float,
+    default=0.1,
+    help="Rotation sigma used to weight exact-GT factors",
+)
 
 
 def load_backbone(args, device):
@@ -142,21 +164,17 @@ def main():
         enable_loop_closure=(args.max_loops > 0),
     )
 
-    if args.metric_pose_file is not None:
-        pose_source = MetricPoseSource(
-            args.metric_pose_file,
-            args.metric_translation_noise_m,
-            args.metric_rotation_noise_deg,
-            args.metric_noise_seed,
-            args.metric_association_tolerance,
+    if args.gt_pose_file is not None:
+        pose_source = GroundTruthPoseSource(
+            args.gt_pose_file,
+            args.gt_association_tolerance,
         )
         solver.configure_metric_factors(
             pose_source,
-            args.metric_min_baseline_m,
-            args.metric_factor_translation_sigma_m,
-            args.metric_factor_rotation_sigma_deg,
+            args.gt_factor_translation_sigma_m,
+            args.gt_factor_rotation_sigma_deg,
         )
-        print("Metric factors enabled from:", args.metric_pose_file)
+        print("Exact-GT metric factors enabled from:", args.gt_pose_file)
 
     solver.backbone_name = args.backbone
     solver.da3_process_res = args.da3_process_res
@@ -195,11 +213,31 @@ def main():
         device,
     )
 
-    # Use the provided image folder path
-    print(f"Loading images from {args.image_folder}...")
-    image_names = [f for f in glob.glob(os.path.join(args.image_folder, "*")) 
-               if "depth" not in os.path.basename(f).lower() and "txt" not in os.path.basename(f).lower() 
-               and "db" not in os.path.basename(f).lower()]
+    if args.image_list is not None:
+        print(f"Loading image paths from {args.image_list}...")
+        with open(args.image_list, "r", encoding="utf-8") as file:
+            image_names = [
+                line.strip()
+                for line in file
+                if line.strip() and not line.lstrip().startswith("#")
+            ]
+    else:
+        print(f"Loading images from {args.image_folder}...")
+        image_names = [
+            path
+            for path in glob.glob(os.path.join(args.image_folder, "*"))
+            if "depth" not in os.path.basename(path).lower()
+            and "txt" not in os.path.basename(path).lower()
+            and "db" not in os.path.basename(path).lower()
+        ]
+
+    missing_images = [path for path in image_names if not os.path.isfile(path)]
+    if missing_images:
+        raise FileNotFoundError(
+            f"Image does not exist: {missing_images[0]}"
+        )
+    if not image_names:
+        raise ValueError("No input images were found.")
 
     image_names = utils.sort_images_by_number(image_names)
     downsample_factor = 1

@@ -19,12 +19,9 @@ class MetricFactorManager:
         self,
         pose_graph,
         pose_source,
-        min_baseline_m,
         factor_translation_sigma_m,
         factor_rotation_sigma_deg,
     ):
-        if min_baseline_m < 0.0:
-            raise ValueError("min_baseline_m must be non-negative.")
         if factor_translation_sigma_m <= 0.0:
             raise ValueError(
                 "factor_translation_sigma_m must be positive."
@@ -36,7 +33,6 @@ class MetricFactorManager:
 
         self.pose_graph = pose_graph
         self.pose_source = pose_source
-        self.min_baseline_m = min_baseline_m
 
         rotation_sigma_rad = np.deg2rad(
             factor_rotation_sigma_deg
@@ -50,10 +46,9 @@ class MetricFactorManager:
 
         self.nodes = {}
         self.previous_node = None
-        self.anchor_node = None
         self.added_pairs = set()
         self.num_overlap_factors = 0
-        self.num_baseline_factors = 0
+        self.num_temporal_factors = 0
 
     def _add_factor(self, node_i, node_j, factor_type):
         pair = (node_i.node_id, node_j.node_id)
@@ -77,7 +72,7 @@ class MetricFactorManager:
         if factor_type == "overlap":
             self.num_overlap_factors += 1
         else:
-            self.num_baseline_factors += 1
+            self.num_temporal_factors += 1
         return True
 
     def register_node(self, node_id, frame_id, intrinsic):
@@ -94,9 +89,6 @@ class MetricFactorManager:
         )
         self.nodes[node_id] = node
 
-        if self.anchor_node is None:
-            self.anchor_node = node
-
         if self.previous_node is not None:
             is_overlap_duplicate = (
                 node.matched_frame_id
@@ -109,25 +101,12 @@ class MetricFactorManager:
                     node,
                     factor_type="overlap",
                 )
-
-                if self.anchor_node.node_id == self.previous_node.node_id:
-                    self.anchor_node = node
             else:
-                anchor_to_current = self.pose_source.get_exact_relative_pose(
-                    self.anchor_node.frame_id,
-                    node.frame_id,
+                self._add_factor(
+                    self.previous_node,
+                    node,
+                    factor_type="temporal",
                 )
-                baseline_m = np.linalg.norm(
-                    anchor_to_current.translation()
-                )
-
-                if baseline_m >= self.min_baseline_m:
-                    self._add_factor(
-                        self.anchor_node,
-                        node,
-                        factor_type="baseline",
-                    )
-                    self.anchor_node = node
 
         self.previous_node = node
 
@@ -137,5 +116,5 @@ class MetricFactorManager:
             "registered_nodes": len(self.nodes),
             "metric_factors": len(self.added_pairs),
             "overlap_factors": self.num_overlap_factors,
-            "baseline_factors": self.num_baseline_factors,
+            "temporal_factors": self.num_temporal_factors,
         }
