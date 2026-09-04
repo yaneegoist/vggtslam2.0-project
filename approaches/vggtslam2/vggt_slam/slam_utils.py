@@ -70,6 +70,13 @@ def decompose_camera(P, no_inverse=False):
     # Left 3x3 part
     M = P[:, :3]
 
+    # A projective camera matrix is defined only up to a non-zero scale.
+    # Canonicalize its sign before RQ decomposition so the recovered
+    # rotation belongs to SO(3), rather than being a reflection.
+    if np.linalg.det(M) < 0.0:
+        P = -P
+        M = -M
+
     # RQ decomposition
     K, R = scipy.linalg.rq(M)
 

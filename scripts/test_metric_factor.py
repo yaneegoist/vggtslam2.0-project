@@ -8,6 +8,7 @@ from vggt_slam.metric_factor import (
     metric_between_residual,
     sl4_to_pose3,
 )
+from vggt_slam.slam_utils import decompose_camera
 
 
 def translation_matrix(x):
@@ -131,6 +132,44 @@ def test_projective_pose_extraction():
     print(f"  residual norm: {np.linalg.norm(residual):.3e}")
 
 
+def test_projection_sign_invariance():
+    angle = np.deg2rad(25.0)
+    rotation_camera_to_world = np.array(
+        [
+            [np.cos(angle), -np.sin(angle), 0.0],
+            [np.sin(angle), np.cos(angle), 0.0],
+            [0.0, 0.0, 1.0],
+        ]
+    )
+    pose_camera_to_world = np.eye(4)
+    pose_camera_to_world[:3, :3] = rotation_camera_to_world
+    pose_camera_to_world[:3, 3] = np.array([1.0, -2.0, 0.5])
+
+    intrinsic = np.array(
+        [
+            [450.0, 0.0, 370.0],
+            [0.0, 451.0, 240.0],
+            [0.0, 0.0, 1.0],
+        ]
+    )
+    projection = intrinsic @ np.linalg.inv(pose_camera_to_world)[:3, :]
+
+    _, rotation_positive, translation_positive, _ = decompose_camera(
+        projection
+    )
+    _, rotation_negative, translation_negative, _ = decompose_camera(
+        -projection
+    )
+
+    assert np.linalg.det(rotation_positive) > 0.0
+    assert np.linalg.det(rotation_negative) > 0.0
+    assert np.allclose(rotation_positive, rotation_negative, atol=1e-10)
+    assert np.allclose(translation_positive, translation_negative, atol=1e-10)
+
+    print("projection sign invariance test: OK")
+
+
 if __name__ == "__main__":
     test_parallel_metric_factor()
     test_projective_pose_extraction()
+    test_projection_sign_invariance()
