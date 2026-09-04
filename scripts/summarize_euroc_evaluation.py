@@ -43,6 +43,7 @@ def parse_log(path):
         "optimize_every_n_submaps": None,
         "backend_max_iterations": None,
         "gt_factor_jacobian": None,
+        "gt_initialize_nodes": None,
     }
     if not path.is_file():
         return fields
@@ -68,6 +69,7 @@ def parse_log(path):
         )
         fields["backend_max_iterations"] = config.get("max_iterations")
         fields["gt_factor_jacobian"] = config.get("gt_factor_jacobian")
+        fields["gt_initialize_nodes"] = config.get("gt_initialize_nodes")
     return fields
 
 
@@ -90,6 +92,7 @@ def load_run(results_root, sequence, method):
         "optimize_every_n_submaps": None,
         "backend_max_iterations": None,
         "gt_factor_jacobian": None,
+        "gt_initialize_nodes": None,
         "dense_map": (result_dir / "trajectory_points.pcd").is_file(),
     }
 
@@ -146,23 +149,26 @@ def write_markdown(path, rows, sequences):
         "# EuRoC DA3 factor-graph ablation",
         "",
         "Comparison of the unchanged DA3/SL(4) backend against the same pipeline with exact",
-        "EuRoC camera GT added as parallel SE(3) factors. GT is used by the baseline only for",
-        "post-run evaluation. SE(3) ATE is aligned by one rigid transform without scale correction.",
-        "The GT-factor run is an oracle ablation, not a deployable SLAM result.",
+        "EuRoC camera GT used for gauge-normalized node initialization and as parallel SE(3)",
+        "relative-pose factors. GT is used by the baseline only for post-run evaluation.",
+        "SE(3) ATE is aligned by one rigid transform without scale correction. The GT-assisted",
+        "run is an oracle ablation, not a deployable SLAM result.",
         "",
         "## Protocol",
         "",
         "- Input: monocular EuRoC cam0 images; the same prepared image list is used for both runs.",
         "- Frontend: Depth Anything 3 with the repository's fixed preprocessing and keyframe policy.",
         "- Baseline: original SL(4) graph, with loop closure disabled in DA3 mode.",
-        "- Oracle: the same graph plus exact EuRoC cam0 relative poses as parallel SE(3) factors.",
+        "- Oracle: SL(4) nodes are initialized from exact cam0 poses after removing the global",
+        "  gauge with T_rel(t) = T_GT(t0)^-1 T_GT(t), then constrained by exact relative SE(3)",
+        "  factors in parallel with the original DA3/SL(4) visual factors.",
         "- Metric-factor noise: 0.01 m translation and 0.1 degree rotation.",
         "- Optimizer cadence, LM iteration cap, and Jacobian scheme are recorded per run in summary.csv.",
         "- The batch runner rejects a pair if baseline and oracle trajectory timestamps differ.",
         "",
         "## Per-sequence results",
         "",
-        "| Sequence | Poses (base/GT) | ATE SE3 baseline [m] | ATE SE3 +GT [m] | ATE Sim3 baseline [m] | RPE trans baseline [m] | RPE trans +GT [m] | RPE rot baseline [deg] | RPE rot +GT [deg] | Time base/GT [s] |",
+        "| Sequence | Poses (base/oracle) | ATE SE3 baseline [m] | ATE SE3 oracle [m] | ATE Sim3 baseline [m] | RPE trans baseline [m] | RPE trans oracle [m] | RPE rot baseline [deg] | RPE rot oracle [deg] | Time base/oracle [s] |",
         "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
     ]
     for sequence, baseline, gt in comparisons:
@@ -203,7 +209,11 @@ def write_markdown(path, rows, sequences):
                 row for row in rows
                 if row["method"] == method and (group == "Overall" or row["group"] == group)
             ]
-            label = "DA3 baseline" if method == "baseline" else "DA3 + exact GT factors"
+            label = (
+                "DA3 baseline"
+                if method == "baseline"
+                else "DA3 + GT initialization + GT factors (oracle)"
+            )
             lines.append(
                 f"| {group} | {label} | {fmt(mean(selected, 'ate_se3_rmse_m'))} | "
                 f"{fmt(mean(selected, 'rpe_translation_rmse_m'))} | "
@@ -220,8 +230,10 @@ def write_markdown(path, rows, sequences):
         "- ATE Sim(3) is a baseline diagnostic showing error after scale correction.",
         "- RPE reports local translation and rotation consistency.",
         "- Dense-map geometry is not validated by ATE/RPE and requires a reference scan.",
-        "- Exact-GT factors test graph wiring, coordinate conventions, and map propagation; DAVIO",
-        "  poses must later replace GT for the deployable experiment.",
+        "- Exact-GT initialization and factors test the metric-pose interface, graph convergence,",
+        "  coordinate conventions, and trajectory propagation.",
+        "- The oracle numbers are not an estimate of deployable accuracy: DAVIO poses and their",
+        "  uncertainty must replace both GT initialization and GT factors in the full pipeline.",
         "- The original V1_01_easy orientation GT has a reported accuracy issue; identify whether",
         "  the official or corrected trajectory was used before interpreting its rotation metric:",
         "  https://docs.openvins.com/gs-datasets.html#groundtruth-on-v1_01_easy",

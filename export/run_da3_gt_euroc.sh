@@ -20,8 +20,13 @@ fi
 
 project_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 sequence=$(basename "${sequence_dir}")
-result_dir="${project_root}/results/da3_gt_euroc/${sequence}"
-container_result_dir="/results/da3_gt_euroc/${sequence}"
+result_set=${RESULT_SET:-da3_gt_euroc}
+if [[ ! "${result_set}" =~ ^[A-Za-z0-9._-]+$ ]]; then
+    echo "Invalid RESULT_SET: ${result_set}" >&2
+    exit 2
+fi
+result_dir="${project_root}/results/${result_set}/${sequence}"
+container_result_dir="/results/${result_set}/${sequence}"
 prepared_dir="${container_result_dir}/prepared"
 mkdir -p "${result_dir}/prepared"
 
@@ -54,8 +59,11 @@ run_command=(
     --gt_association_tolerance 0.001
     --gt_factor_translation_sigma_m 0.01
     --gt_factor_rotation_sigma_deg 0.1
-    --gt_factor_jacobian "${GT_FACTOR_JACOBIAN:-forward}"
+    --gt_factor_jacobian "${GT_FACTOR_JACOBIAN:-cached_forward}"
 )
+if [[ "${GT_INITIALIZE_NODES:-1}" == "1" ]]; then
+    run_command+=(--gt_initialize_nodes)
+fi
 if [[ "${SAVE_DENSE:-1}" == "0" ]]; then
     run_command+=(--skip_dense_log)
 fi

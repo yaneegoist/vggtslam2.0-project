@@ -113,9 +113,17 @@ gt_group.add_argument(
 )
 gt_group.add_argument(
     "--gt_factor_jacobian",
-    choices=["central", "forward"],
+    choices=["central", "forward", "cached_forward"],
     default="central",
-    help="Numerical Jacobian scheme for exact-GT CustomFactors",
+    help="Jacobian implementation for exact-GT CustomFactors",
+)
+gt_group.add_argument(
+    "--gt_initialize_nodes",
+    action="store_true",
+    help=(
+        "Initialize SL4 nodes from gauge-normalized metric poses before "
+        "optimization"
+    ),
 )
 
 
@@ -198,6 +206,7 @@ def main():
             args.gt_factor_translation_sigma_m,
             args.gt_factor_rotation_sigma_deg,
             args.gt_factor_jacobian,
+            args.gt_initialize_nodes,
         )
         print("Exact-GT metric factors enabled from:", args.gt_pose_file)
 
@@ -207,6 +216,7 @@ def main():
             "every_n_submaps": args.backend_optimize_every_n_submaps,
             "max_iterations": args.backend_max_iterations,
             "gt_factor_jacobian": args.gt_factor_jacobian,
+            "gt_initialize_nodes": args.gt_initialize_nodes,
         },
     )
 

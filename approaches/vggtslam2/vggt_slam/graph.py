@@ -38,6 +38,32 @@ class PoseGraph:
         self.values.insert(key, SL4(global_h))
         self.initialized_nodes.add(key)
 
+    def set_homography_initial_value(self, key, global_h):
+        """Replace only the optimizer initial value of an existing node."""
+        key = X(key)
+        if key not in self.initialized_nodes:
+            raise ValueError(
+                f"SL4 {key} must exist before setting its initial value."
+            )
+
+        global_h = np.asarray(global_h, dtype=float)
+        if global_h.shape != (4, 4):
+            raise ValueError(
+                "Initial homography must have shape (4, 4), "
+                f"got {global_h.shape}."
+            )
+        if not np.isfinite(global_h).all():
+            raise ValueError("Initial homography contains non-finite values.")
+
+        self.values.update(key, SL4(global_h))
+
+    def get_homography_initial_value(self, key):
+        """Return the raw SL4 value used to initialize optimization."""
+        key = X(key)
+        if key not in self.initialized_nodes:
+            raise ValueError(f"SL4 {key} has not been initialized.")
+        return self.values.atSL4(key).matrix().copy()
+
     def add_between_factor(self, key1, key2, relative_h, noise):
         """Add a relative SL4 constraint between two nodes."""
         # relative_h = normalize_to_sl4(relative_h)
@@ -57,6 +83,7 @@ class PoseGraph:
         noise,
         numerical_derivative_epsilon=1e-6,
         numerical_derivative_scheme="central",
+        linearization_cache=None,
     ):
         """Add a six-dimensional metric constraint between SL4 nodes."""
         key1 = X(key1)
@@ -77,6 +104,7 @@ class PoseGraph:
             noise,
             numerical_derivative_epsilon,
             numerical_derivative_scheme,
+            linearization_cache,
         )
         self.graph.add(factor)
     
@@ -112,7 +140,7 @@ class PoseGraph:
 
     
     def optimize(self, verbose=False, max_iterations=None):
-        """Optimize the graph with Levenberg–Marquardt and print per-factor errors."""
+        """Optimize the graph with optional diagnostic error evaluation."""
         # Optional verbosity settings
         params = gtsam.LevenbergMarquardtParams()
         if max_iterations is not None:
@@ -123,12 +151,10 @@ class PoseGraph:
 
         optimizer = gtsam.LevenbergMarquardtOptimizer(self.graph, self.values, params)
 
-        # --- Initial total error ---
-        initial_error = self.graph.error(self.values)
-        print(f"Initial total error: {initial_error:.6f}")
-
-        # --- Per-factor initial error ---
         if verbose:
+            initial_error = self.graph.error(self.values)
+            print(f"Initial total error: {initial_error:.6f}")
+
             print("\nInitial per-factor errors:")
             for i in range(self.graph.size()):
                 factor = self.graph.at(i)
@@ -144,12 +170,10 @@ class PoseGraph:
         # --- Optimize ---
         result = optimizer.optimize()
 
-        # --- Final total error ---
-        final_error = self.graph.error(result)
-        # print(f"\nFinal total error: {final_error:.6f}")
-
-        # --- Per-factor final error ---
         if verbose:
+            final_error = self.graph.error(result)
+            print(f"\nFinal total error: {final_error:.6f}")
+
             print("\nFinal per-factor errors:")
             for i in range(self.graph.size()):
                 factor = self.graph.at(i)

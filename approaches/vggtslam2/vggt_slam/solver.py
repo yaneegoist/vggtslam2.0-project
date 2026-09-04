@@ -75,6 +75,7 @@ class Solver:
         factor_translation_sigma_m,
         factor_rotation_sigma_deg,
         numerical_derivative_scheme="central",
+        initialize_nodes_from_metric_poses=False,
     ):
         """Enable metric factors for subsequently added submaps."""
         self.metric_factor_manager = MetricFactorManager(
@@ -83,6 +84,9 @@ class Solver:
             factor_translation_sigma_m=factor_translation_sigma_m,
             factor_rotation_sigma_deg=factor_rotation_sigma_deg,
             numerical_derivative_scheme=numerical_derivative_scheme,
+            initialize_nodes_from_metric_poses=(
+                initialize_nodes_from_metric_poses
+            ),
         )
 
     def register_metric_nodes(self, submap):

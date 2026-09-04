@@ -5,6 +5,7 @@ from gtsam.symbol_shorthand import X
 
 from vggt_slam.graph import PoseGraph
 from vggt_slam.metric_factor import (
+    MetricFactorLinearizationCache,
     metric_between_residual,
     sl4_to_pose3,
 )
@@ -40,6 +41,11 @@ def test_parallel_metric_factor(jacobian_scheme):
     metric_noise = gtsam.noiseModel.Diagonal.Sigmas(
         np.full(6, 0.05)
     )
+    linearization_cache = None
+    if jacobian_scheme == "cached_forward":
+        linearization_cache = MetricFactorLinearizationCache(
+            scheme="forward"
+        )
 
     pose_graph.add_between_factor(
         0,
@@ -55,6 +61,7 @@ def test_parallel_metric_factor(jacobian_scheme):
         make_pose3(1.0),
         metric_noise,
         numerical_derivative_scheme=jacobian_scheme,
+        linearization_cache=linearization_cache,
     )
 
     initial_x = sl4_to_pose3(
@@ -173,5 +180,6 @@ def test_projection_sign_invariance():
 if __name__ == "__main__":
     test_parallel_metric_factor("central")
     test_parallel_metric_factor("forward")
+    test_parallel_metric_factor("cached_forward")
     test_projective_pose_extraction()
     test_projection_sign_invariance()
