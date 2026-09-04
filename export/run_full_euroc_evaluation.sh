@@ -4,7 +4,7 @@ set -euo pipefail
 if [[ $# -lt 1 || $# -gt 3 ]]; then
     echo "Usage: $0 EXTRACTED_ROOT [GPU] [mh|mh_v1|all]" >&2
     echo "Example: $0 /data/euroc/extracted 1 mh_v1" >&2
-    echo "Environment: SAVE_DENSE=0|1, SKIP_COMPLETED=0|1" >&2
+    echo "Environment: SAVE_DENSE=0|1, SKIP_COMPLETED=0|1, METHODS=baseline,gt|baseline|gt" >&2
     exit 2
 fi
 
@@ -13,6 +13,15 @@ gpu=${2:-0}
 scope=${3:-mh_v1}
 save_dense=${SAVE_DENSE:-0}
 skip_completed=${SKIP_COMPLETED:-1}
+methods_text=${METHODS:-baseline,gt}
+IFS=',' read -r -a methods <<< "${methods_text}"
+
+for method in "${methods[@]}"; do
+    if [[ "${method}" != "baseline" && "${method}" != "gt" ]]; then
+        echo "Unknown method '${method}'. Use METHODS=baseline,gt, baseline, or gt." >&2
+        exit 2
+    fi
+done
 
 machine_hall=(MH_01_easy MH_02_easy MH_03_medium MH_04_difficult MH_05_difficult)
 vicon_room1=(V1_01_easy V1_02_medium V1_03_difficult)
@@ -105,7 +114,7 @@ failures=0
 
 for sequence in "${sequences[@]}"; do
     pair_ok=1
-    for method in baseline gt; do
+    for method in "${methods[@]}"; do
         if run_one "${method}" "${sequence}"; then
             printf '%s\t%s\tOK\n' "${sequence}" "${method}" >> "${status_file}"
         else

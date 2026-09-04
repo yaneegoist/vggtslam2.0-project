@@ -24,7 +24,7 @@ def make_pose3(x):
     )
 
 
-def test_parallel_metric_factor():
+def test_parallel_metric_factor(jacobian_scheme):
     pose_graph = PoseGraph()
 
     initial_i = translation_matrix(0.0)
@@ -54,6 +54,7 @@ def test_parallel_metric_factor():
         np.eye(3),
         make_pose3(1.0),
         metric_noise,
+        numerical_derivative_scheme=jacobian_scheme,
     )
 
     initial_x = sl4_to_pose3(
@@ -77,7 +78,7 @@ def test_parallel_metric_factor():
     assert np.isclose(initial_x, 1.5, atol=1e-9)
     assert np.isclose(optimized_x, expected_x, atol=1e-6)
 
-    print("parallel factor test: OK")
+    print(f"parallel factor test ({jacobian_scheme}): OK")
     print(f"  initial x:   {initial_x:.9f}")
     print(f"  optimized x: {optimized_x:.9f}")
     print(f"  expected x:  {expected_x:.9f}")
@@ -170,6 +171,7 @@ def test_projection_sign_invariance():
 
 
 if __name__ == "__main__":
-    test_parallel_metric_factor()
+    test_parallel_metric_factor("central")
+    test_parallel_metric_factor("forward")
     test_projective_pose_extraction()
     test_projection_sign_invariance()

@@ -56,6 +56,7 @@ class PoseGraph:
         measured_relative_pose,
         noise,
         numerical_derivative_epsilon=1e-6,
+        numerical_derivative_scheme="central",
     ):
         """Add a six-dimensional metric constraint between SL4 nodes."""
         key1 = X(key1)
@@ -75,6 +76,7 @@ class PoseGraph:
             measured_relative_pose,
             noise,
             numerical_derivative_epsilon,
+            numerical_derivative_scheme,
         )
         self.graph.add(factor)
     
@@ -109,10 +111,12 @@ class PoseGraph:
         return projection_matri
 
     
-    def optimize(self, verbose=False):
+    def optimize(self, verbose=False, max_iterations=None):
         """Optimize the graph with Levenberg–Marquardt and print per-factor errors."""
         # Optional verbosity settings
         params = gtsam.LevenbergMarquardtParams()
+        if max_iterations is not None:
+            params.setMaxIterations(int(max_iterations))
         if verbose:
             params.setVerbosityLM("SUMMARY")
             params.setVerbosity("ERROR")

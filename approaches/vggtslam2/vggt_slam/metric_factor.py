@@ -79,47 +79,42 @@ def _numerical_jacobian(
     measured_relative_pose,
     variable_index,
     epsilon,
+    scheme,
+    base_residual,
 ):
     jacobian = np.zeros((METRIC_RESIDUAL_DIM, SL4_TANGENT_DIM))
+
+    def evaluate(signed_delta):
+        if variable_index == 0:
+            return metric_between_residual(
+                sl4_i.retract(signed_delta),
+                sl4_j,
+                intrinsic_i,
+                intrinsic_j,
+                measured_relative_pose,
+            )
+        return metric_between_residual(
+            sl4_i,
+            sl4_j.retract(signed_delta),
+            intrinsic_i,
+            intrinsic_j,
+            measured_relative_pose,
+        )
 
     for column in range(SL4_TANGENT_DIM):
         delta = np.zeros(SL4_TANGENT_DIM)
         delta[column] = epsilon
 
-        if variable_index == 0:
-            residual_plus = metric_between_residual(
-                sl4_i.retract(delta),
-                sl4_j,
-                intrinsic_i,
-                intrinsic_j,
-                measured_relative_pose,
-            )
-            residual_minus = metric_between_residual(
-                sl4_i.retract(-delta),
-                sl4_j,
-                intrinsic_i,
-                intrinsic_j,
-                measured_relative_pose,
-            )
+        residual_plus = evaluate(delta)
+        if scheme == "forward":
+            jacobian[:, column] = (
+                residual_plus - base_residual
+            ) / epsilon
         else:
-            residual_plus = metric_between_residual(
-                sl4_i,
-                sl4_j.retract(delta),
-                intrinsic_i,
-                intrinsic_j,
-                measured_relative_pose,
-            )
-            residual_minus = metric_between_residual(
-                sl4_i,
-                sl4_j.retract(-delta),
-                intrinsic_i,
-                intrinsic_j,
-                measured_relative_pose,
-            )
-
-        jacobian[:, column] = (
-            residual_plus - residual_minus
-        ) / (2.0 * epsilon)
+            residual_minus = evaluate(-delta)
+            jacobian[:, column] = (
+                residual_plus - residual_minus
+            ) / (2.0 * epsilon)
 
     return np.asfortranarray(jacobian)
 
@@ -132,8 +127,13 @@ def make_metric_between_factor(
     measured_relative_pose,
     noise_model,
     numerical_derivative_epsilon=1e-6,
+    numerical_derivative_scheme="central",
 ):
     """Create a 6D metric CustomFactor between two SL(4) variables."""
+    if numerical_derivative_scheme not in {"central", "forward"}:
+        raise ValueError(
+            "numerical_derivative_scheme must be 'central' or 'forward'."
+        )
     intrinsic_i = np.asarray(intrinsic_i, dtype=float).copy()
     intrinsic_j = np.asarray(intrinsic_j, dtype=float).copy()
 
@@ -158,6 +158,8 @@ def make_metric_between_factor(
                 measured_relative_pose,
                 variable_index=0,
                 epsilon=numerical_derivative_epsilon,
+                scheme=numerical_derivative_scheme,
+                base_residual=residual,
             )
             jacobians[1] = _numerical_jacobian(
                 sl4_i,
@@ -167,6 +169,8 @@ def make_metric_between_factor(
                 measured_relative_pose,
                 variable_index=1,
                 epsilon=numerical_derivative_epsilon,
+                scheme=numerical_derivative_scheme,
+                base_residual=residual,
             )
 
         return residual

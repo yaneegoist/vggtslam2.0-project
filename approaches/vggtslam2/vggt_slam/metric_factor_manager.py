@@ -21,6 +21,7 @@ class MetricFactorManager:
         pose_source,
         factor_translation_sigma_m,
         factor_rotation_sigma_deg,
+        numerical_derivative_scheme="central",
     ):
         if factor_translation_sigma_m <= 0.0:
             raise ValueError(
@@ -33,6 +34,7 @@ class MetricFactorManager:
 
         self.pose_graph = pose_graph
         self.pose_source = pose_source
+        self.numerical_derivative_scheme = numerical_derivative_scheme
 
         rotation_sigma_rad = np.deg2rad(
             factor_rotation_sigma_deg
@@ -66,6 +68,7 @@ class MetricFactorManager:
             node_j.intrinsic,
             measured_relative_pose,
             self.noise_model,
+            numerical_derivative_scheme=self.numerical_derivative_scheme,
         )
 
         self.added_pairs.add(pair)

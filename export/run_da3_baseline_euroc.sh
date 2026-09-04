@@ -45,6 +45,8 @@ run_command=(
     --backbone da3
     --image_list "${prepared_dir}/cam0_images.txt"
     --max_loops 0
+    --backend_optimize_every_n_submaps "${BACKEND_OPTIMIZE_EVERY_N_SUBMAPS:-4}"
+    --backend_max_iterations "${BACKEND_MAX_ITERATIONS:-25}"
     --headless
     --log_results
     --log_path "${container_result_dir}/trajectory.txt"

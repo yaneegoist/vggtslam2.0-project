@@ -40,6 +40,18 @@ parser.add_argument("--max_loops", type=int, default=1, help="ONLY DEFAULT OF 1 
 parser.add_argument("--min_disparity", type=float, default=50, help="Minimum disparity to generate a new keyframe")
 parser.add_argument("--conf_threshold", type=float, default=25.0, help="Initial percentage of low-confidence points to filter out")
 parser.add_argument("--lc_thres", type=float, default=0.95, help="Threshold for image retrieval. Range: [0, 1.0]. Higher = more loop closures")
+parser.add_argument(
+    "--backend_optimize_every_n_submaps",
+    type=int,
+    default=1,
+    help="Run graph optimization every N submaps and always on the final submap",
+)
+parser.add_argument(
+    "--backend_max_iterations",
+    type=int,
+    default=100,
+    help="Maximum Levenberg-Marquardt iterations per backend update",
+)
 
 parser.add_argument(
     "--backbone",
@@ -99,6 +111,12 @@ gt_group.add_argument(
     default=0.1,
     help="Rotation sigma used to weight exact-GT factors",
 )
+gt_group.add_argument(
+    "--gt_factor_jacobian",
+    choices=["central", "forward"],
+    default="central",
+    help="Numerical Jacobian scheme for exact-GT CustomFactors",
+)
 
 
 def load_backbone(args, device):
@@ -151,6 +169,12 @@ def main():
             "The original loop-closure inference call is "
             "VGGT-specific."
         )
+    if args.backend_optimize_every_n_submaps <= 0:
+        raise ValueError(
+            "--backend_optimize_every_n_submaps must be positive."
+        )
+    if args.backend_max_iterations <= 0:
+        raise ValueError("--backend_max_iterations must be positive.")
 
     use_optical_flow_downsample = True
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -173,8 +197,18 @@ def main():
             pose_source,
             args.gt_factor_translation_sigma_m,
             args.gt_factor_rotation_sigma_deg,
+            args.gt_factor_jacobian,
         )
         print("Exact-GT metric factors enabled from:", args.gt_pose_file)
+
+    print(
+        "Backend optimization config:",
+        {
+            "every_n_submaps": args.backend_optimize_every_n_submaps,
+            "max_iterations": args.backend_max_iterations,
+            "gt_factor_jacobian": args.gt_factor_jacobian,
+        },
+    )
 
     solver.backbone_name = args.backbone
     solver.da3_process_res = args.da3_process_res
@@ -272,8 +306,21 @@ def main():
 
             solver.add_points(predictions)
 
-            with backend_time:
-                solver.graph.optimize()
+            is_final_submap = image_name == image_names[-1]
+            should_optimize = (
+                count % args.backend_optimize_every_n_submaps == 0
+                or is_final_submap
+            )
+            if should_optimize:
+                with backend_time:
+                    solver.graph.optimize(
+                        max_iterations=args.backend_max_iterations
+                    )
+            else:
+                print(
+                    "Backend optimization deferred at submap",
+                    count,
+                )
 
             loop_closure_detected = len(predictions["detected_loops"]) > 0
             if args.vis_map:

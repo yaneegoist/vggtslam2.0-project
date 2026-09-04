@@ -1,4 +1,5 @@
 import argparse
+import ast
 import csv
 import math
 import re
@@ -35,7 +36,14 @@ def parse_rmse(path):
 
 
 def parse_log(path):
-    fields = {"keyframes": None, "total_time_s": None, "fps": None}
+    fields = {
+        "keyframes": None,
+        "total_time_s": None,
+        "fps": None,
+        "optimize_every_n_submaps": None,
+        "backend_max_iterations": None,
+        "gt_factor_jacobian": None,
+    }
     if not path.is_file():
         return fields
     text = path.read_text(encoding="utf-8", errors="replace")
@@ -48,6 +56,18 @@ def parse_log(path):
         matches = re.findall(pattern, text)
         if matches:
             fields[field] = int(matches[-1]) if field == "keyframes" else float(matches[-1])
+
+    config_matches = re.findall(
+        r"(?m)^Backend optimization config:\s*(\{.*\})\s*$",
+        text,
+    )
+    if config_matches:
+        config = ast.literal_eval(config_matches[-1])
+        fields["optimize_every_n_submaps"] = config.get(
+            "every_n_submaps"
+        )
+        fields["backend_max_iterations"] = config.get("max_iterations")
+        fields["gt_factor_jacobian"] = config.get("gt_factor_jacobian")
     return fields
 
 
@@ -67,6 +87,9 @@ def load_run(results_root, sequence, method):
         "rpe_rotation_rmse_deg": None,
         "total_time_s": None,
         "fps": None,
+        "optimize_every_n_submaps": None,
+        "backend_max_iterations": None,
+        "gt_factor_jacobian": None,
         "dense_map": (result_dir / "trajectory_points.pcd").is_file(),
     }
 
@@ -134,6 +157,7 @@ def write_markdown(path, rows, sequences):
         "- Baseline: original SL(4) graph, with loop closure disabled in DA3 mode.",
         "- Oracle: the same graph plus exact EuRoC cam0 relative poses as parallel SE(3) factors.",
         "- Metric-factor noise: 0.01 m translation and 0.1 degree rotation.",
+        "- Optimizer cadence, LM iteration cap, and Jacobian scheme are recorded per run in summary.csv.",
         "- The batch runner rejects a pair if baseline and oracle trajectory timestamps differ.",
         "",
         "## Per-sequence results",
