@@ -13,12 +13,14 @@ import matplotlib.pyplot as plt
 import vggt_slam.slam_utils as utils
 from vggt_slam.solver import Solver
 from vggt_slam.submap import Submap
+from vggt_slam.metric_pose_source import MetricPoseSource
 
 from vggt.models.vggt import VGGT
 
 parser = argparse.ArgumentParser(description="VGGT-SLAM demo")
 parser.add_argument("--image_folder", type=str, default="examples/kitchen/images/", help="Path to folder containing images")
 parser.add_argument("--vis_map", action="store_true", help="Visualize point cloud in viser as it is being build, otherwise only show the final map")
+parser.add_argument("--headless", action="store_true", help="Skip map visualization")
 parser.add_argument("--vis_imgs", action="store_true", help="Show camera images in the viser frustums. By default only the frustums are shown (faster visualization)")
 parser.add_argument("--vis_voxel_size", type=float, default=None, help="Voxel size for downsampling the point cloud in the viewer (e.g. 0.05 for 5 cm). Default: no downsampling")
 parser.add_argument("--run_os", action="store_true", help="Enable open-set semantic search with Perception Encoder CLIP and SAM3")
@@ -65,6 +67,16 @@ parser.add_argument(
     default="saddle_balanced",
     help="DA3 reference-view selection strategy",
 )
+
+metric_group = parser.add_argument_group("metric pose factors")
+metric_group.add_argument("--metric_pose_file", type=str, default=None)
+metric_group.add_argument("--metric_translation_noise_m", type=float, default=0.0)
+metric_group.add_argument("--metric_rotation_noise_deg", type=float, default=0.0)
+metric_group.add_argument("--metric_noise_seed", type=int, default=0)
+metric_group.add_argument("--metric_association_tolerance", type=float, default=1e-3)
+metric_group.add_argument("--metric_min_baseline_m", type=float, default=1.0)
+metric_group.add_argument("--metric_factor_translation_sigma_m", type=float, default=0.10)
+metric_group.add_argument("--metric_factor_rotation_sigma_deg", type=float, default=2.0)
 
 
 def load_backbone(args, device):
@@ -129,6 +141,22 @@ def main():
         vis_imgs=args.vis_imgs,
         enable_loop_closure=(args.max_loops > 0),
     )
+
+    if args.metric_pose_file is not None:
+        pose_source = MetricPoseSource(
+            args.metric_pose_file,
+            args.metric_translation_noise_m,
+            args.metric_rotation_noise_deg,
+            args.metric_noise_seed,
+            args.metric_association_tolerance,
+        )
+        solver.configure_metric_factors(
+            pose_source,
+            args.metric_min_baseline_m,
+            args.metric_factor_translation_sigma_m,
+            args.metric_factor_rotation_sigma_deg,
+        )
+        print("Metric factors enabled from:", args.metric_pose_file)
 
     solver.backbone_name = args.backbone
     solver.da3_process_res = args.da3_process_res
@@ -234,6 +262,8 @@ def main():
         
     print("Total number of submaps in map", solver.map.get_num_submaps())
     print("Total number of loop closures in map", solver.graph.get_num_loops())
+    if solver.metric_factor_manager is not None:
+        print("Final metric factor summary:", solver.metric_factor_manager.get_summary())
 
 
     if args.run_os:
@@ -286,7 +316,7 @@ def main():
                     line_width=8.0,
                 )
 
-    if not args.vis_map:
+    if not args.vis_map and not args.headless:
         # just show the map after all submaps have been processed
         solver.update_all_submap_vis()
 

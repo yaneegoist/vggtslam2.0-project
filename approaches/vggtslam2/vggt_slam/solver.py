@@ -18,6 +18,7 @@ from vggt_slam.frame_overlap import FrameTracker
 from vggt_slam.map import GraphMap
 from vggt_slam.submap import Submap
 from vggt_slam.graph import PoseGraph
+from vggt_slam.metric_factor_manager import MetricFactorManager
 from vggt_slam.scale_solver import estimate_scale_pairwise
 from vggt_slam.viewer import Viewer
 
@@ -51,6 +52,7 @@ class Solver:
         self.flow_tracker = FrameTracker()
         self.map = GraphMap()
         self.graph = PoseGraph()
+        self.metric_factor_manager = None
 
         self.enable_loop_closure = enable_loop_closure
         self.image_retrieval = (
@@ -66,6 +68,48 @@ class Solver:
         self.vggt_timer = Accumulator()
         self.loop_closure_timer = Accumulator()
         self.clip_timer = Accumulator()
+
+    def configure_metric_factors(
+        self,
+        pose_source,
+        min_baseline_m,
+        factor_translation_sigma_m,
+        factor_rotation_sigma_deg,
+    ):
+        """Enable metric factors for subsequently added submaps."""
+        self.metric_factor_manager = MetricFactorManager(
+            pose_graph=self.graph,
+            pose_source=pose_source,
+            min_baseline_m=min_baseline_m,
+            factor_translation_sigma_m=factor_translation_sigma_m,
+            factor_rotation_sigma_deg=factor_rotation_sigma_deg,
+        )
+
+    def register_metric_nodes(self, submap):
+        """Register the chronological nodes of a normal submap."""
+        if self.metric_factor_manager is None:
+            return
+
+        frame_ids = submap.get_frame_ids()
+        if len(frame_ids) != len(submap.proj_mats):
+            raise ValueError(
+                "Metric registration requires one intrinsic matrix "
+                "for every frame id."
+            )
+
+        for frame_index, frame_id in enumerate(frame_ids):
+            node_id = submap.get_id() + frame_index
+            intrinsic = submap.proj_mats[frame_index, :3, :3]
+            self.metric_factor_manager.register_node(
+                node_id,
+                frame_id,
+                intrinsic,
+            )
+
+        print(
+            "Metric factor summary:",
+            self.metric_factor_manager.get_summary(),
+        )
 
     def set_point_cloud(self, points_in_world_frame, points_colors, name, point_size):
         if self.vis_voxel_size is not None:
@@ -258,6 +302,9 @@ class Solver:
 
         # Add all constraints for the new submap.
         self.add_edge(submap_id_curr, frame_id_curr, submap_id_prev, frame_id_prev, is_loop_closure=False)
+
+        # Add metric factors only for the normal chronological submap.
+        self.register_metric_nodes(self.current_working_submap)
 
         # Add in loop closures if any were detected.
         for index, loop in enumerate(detected_loops):
